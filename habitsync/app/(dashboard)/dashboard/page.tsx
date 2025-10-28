@@ -5,7 +5,8 @@ import AddHabitModal from "../../../components/AddHabitModal";
 import { useAuth } from "../../../context/AuthContext";
 import { useRouter } from "next/navigation";
 import { db } from "../../../lib/firebase";
-import { collection, addDoc, onSnapshot, orderBy, query, where, serverTimestamp, doc, updateDoc } from "firebase/firestore";
+import { collection, addDoc, onSnapshot, orderBy, query, where, serverTimestamp, doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { Pencil, Trash2 } from 'lucide-react';
 
 type Habit = {
   id: number;
@@ -19,6 +20,8 @@ type Habit = {
 
 export default function DashboardPage() {
   const [modalOpen, setModalOpen] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [habitToEdit, setHabitToEdit] = useState<Habit | null>(null);
   const { user, loading, xp, setXp } = useAuth();
   const router = useRouter();
   const [habits, setHabits] = useState<Habit[]>([]);
@@ -78,6 +81,34 @@ export default function DashboardPage() {
     });
   }
 
+  async function handleUpdateHabit(habitId: number | string, payload: { name: string; category: Habit["category"]; icon: string; color: Habit["color"]; }) {
+    const ref = doc(db, "habits", String(habitId));
+    await updateDoc(ref, {
+      name: payload.name,
+      icon: payload.icon,
+      color: payload.color,
+      category: payload.category,
+    });
+  }
+
+  async function handleDeleteHabit(habitId: number) {
+    if (!confirm("Are you sure you want to delete this habit?")) return;
+    const ref = doc(db, "habits", String(habitId));
+    await deleteDoc(ref);
+  }
+
+  function handleEditClick(habit: Habit) {
+    setHabitToEdit(habit);
+    setEditMode(true);
+    setModalOpen(true);
+  }
+
+  function handleAddClick() {
+    setHabitToEdit(null);
+    setEditMode(false);
+    setModalOpen(true);
+  }
+
   return (
     <>
       <div className="mb-4 flex items-center justify-between">
@@ -85,7 +116,7 @@ export default function DashboardPage() {
         <button
           type="button"
           className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-          onClick={() => setModalOpen(true)}
+          onClick={handleAddClick}
         >
           + Add New Habit
         </button>
@@ -93,7 +124,7 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {habits.map((habit) => (
-          <div key={habit.id} className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition-colors">
+          <div key={habit.id} className="group relative flex items-center justify-between rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition-colors hover:shadow-md">
             <div className="flex items-center gap-3">
               <div className="text-2xl" aria-hidden>{habit.icon}</div>
               <div>
@@ -101,18 +132,38 @@ export default function DashboardPage() {
                 <div className="text-sm text-gray-500">🔥 {habit.streak} day{habit.streak === 1 ? "" : "s"} streak</div>
               </div>
             </div>
-            <input
-              type="checkbox"
-              checked={habit.completed}
-              onChange={() => toggleHabitCompleted(habit.id)}
-              className="h-5 w-5 cursor-pointer rounded border-gray-300 text-green-600 accent-green-600"
-              aria-label={habit.completed ? "Completed today" : "Not completed"}
-            />
+            <div className="flex items-center gap-2">
+              <div className="flex items-center opacity-0 transition-opacity group-hover:opacity-100">
+                <button
+                  type="button"
+                  onClick={() => handleEditClick(habit)}
+                  className="rounded-md p-1.5 text-blue-600 transition-colors hover:bg-blue-50"
+                  aria-label="Edit habit"
+                >
+                  <Pencil size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteHabit(habit.id)}
+                  className="rounded-md p-1.5 text-red-600 transition-colors hover:bg-red-50"
+                  aria-label="Delete habit"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+              <input
+                type="checkbox"
+                checked={habit.completed}
+                onChange={() => toggleHabitCompleted(habit.id)}
+                className="h-5 w-5 cursor-pointer rounded border-gray-300 text-green-600 accent-green-600"
+                aria-label={habit.completed ? "Completed today" : "Not completed"}
+              />
+            </div>
           </div>
         ))}
       </div>
 
-      <AddHabitModal open={modalOpen} onClose={() => setModalOpen(false)} onCreate={(h) => handleCreateHabit(h)} />
+      <AddHabitModal open={modalOpen} onClose={() => setModalOpen(false)} onCreate={(h) => handleCreateHabit(h)} onUpdate={handleUpdateHabit} editMode={editMode} habitToEdit={habitToEdit} />
     </>
   );
 }

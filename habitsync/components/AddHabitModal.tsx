@@ -2,10 +2,21 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+type Habit = {
+  id: number | string;
+  name: string;
+  icon: string;
+  color: typeof COLORS[number]["name"];
+  category: typeof CATEGORIES[number];
+};
+
 type AddHabitModalProps = {
   open: boolean;
   onClose: () => void;
   onCreate?: (habit: { name: string; category: typeof CATEGORIES[number]; icon: string; color: typeof COLORS[number]["name"] }) => void;
+  onUpdate?: (habitId: number | string, habit: { name: string; category: typeof CATEGORIES[number]; icon: string; color: typeof COLORS[number]["name"] }) => void;
+  editMode?: boolean;
+  habitToEdit?: Habit | null;
 };
 
 const ICONS = ["☀️", "💧", "📖", "🏃", "🎯", "💪", "🧘", "🍎", "😴", "✍️"];
@@ -18,7 +29,7 @@ const COLORS = [
   { name: "pink", class: "bg-pink-500" },
 ] as const;
 
-export default function AddHabitModal({ open, onClose, onCreate }: AddHabitModalProps) {
+export default function AddHabitModal({ open, onClose, onCreate, onUpdate, editMode = false, habitToEdit = null }: AddHabitModalProps) {
   const [name, setName] = useState("");
   const [category, setCategory] = useState<typeof CATEGORIES[number]>("Health");
   const [icon, setIcon] = useState(ICONS[0]);
@@ -27,12 +38,19 @@ export default function AddHabitModal({ open, onClose, onCreate }: AddHabitModal
   // Reset form when opened
   useEffect(() => {
     if (open) {
-      setName("");
-      setCategory("Health");
-      setIcon(ICONS[0]);
-      setColor("blue");
+      if (editMode && habitToEdit) {
+        setName(habitToEdit.name);
+        setCategory(habitToEdit.category);
+        setIcon(habitToEdit.icon);
+        setColor(habitToEdit.color);
+      } else {
+        setName("");
+        setCategory("Health");
+        setIcon(ICONS[0]);
+        setColor("blue");
+      }
     }
-  }, [open]);
+  }, [open, editMode, habitToEdit]);
 
   const colorClass = useMemo(() => COLORS.find((c) => c.name === color)?.class ?? "bg-blue-500", [color]);
 
@@ -50,7 +68,7 @@ export default function AddHabitModal({ open, onClose, onCreate }: AddHabitModal
       <div className="absolute inset-0 flex items-center justify-center p-4">
         <div className="w-full max-w-lg scale-95 transform rounded-2xl border border-gray-200 bg-white p-6 shadow-xl opacity-0 ring-1 ring-black/5 animate-[popIn_180ms_ease-out_forwards]">
           <div className="flex items-start justify-between">
-            <h3 className="text-lg font-semibold text-gray-900">Add New Habit</h3>
+            <h3 className="text-lg font-semibold text-gray-900">{editMode ? "Edit Habit" : "Add New Habit"}</h3>
             <button
               type="button"
               onClick={onClose}
@@ -150,12 +168,16 @@ export default function AddHabitModal({ open, onClose, onCreate }: AddHabitModal
             <button
               type="button"
               onClick={() => {
-                onCreate?.({ name, category, icon, color });
+                if (editMode && habitToEdit) {
+                  onUpdate?.(habitToEdit.id, { name, category, icon, color });
+                } else {
+                  onCreate?.({ name, category, icon, color });
+                }
                 onClose();
               }}
               className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
             >
-              Create Habit
+              {editMode ? "Update Habit" : "Create Habit"}
             </button>
           </div>
         </div>
