@@ -31,6 +31,63 @@ function priorityColor(priority: Priority): string {
   return map[priority];
 }
 
+type TemplateTask = {
+  title: string;
+  priority: Priority;
+};
+
+type TemplateCardProps = {
+  icon: string;
+  title: string;
+  tasks: TemplateTask[];
+  bgColor: string;
+  onCreate: (values: { title: string; priority: Priority; dueDate?: string }) => void;
+  userId?: string;
+};
+
+function TemplateCard({ icon, title, tasks, bgColor, onCreate, userId }: TemplateCardProps) {
+  async function handleUseTemplate() {
+    if (!userId) return;
+    const confirmed = confirm(`Add ${tasks.length} tasks from "${title}"?`);
+    if (!confirmed) return;
+
+    for (const task of tasks) {
+      await onCreate({
+        title: task.title,
+        priority: task.priority,
+      });
+    }
+    alert(`✅ Added ${tasks.length} tasks from ${title}!`);
+  }
+
+  return (
+    <div className={`relative min-h-48 rounded-lg bg-gradient-to-br ${bgColor} p-4 text-white shadow-md transition-transform hover:scale-105`}>
+      <div className="flex items-center gap-2 mb-2">
+        <div className="text-xl">{icon}</div>
+        <h4 className="text-base font-semibold line-clamp-1">{title}</h4>
+      </div>
+      <div className="mb-2 text-xs text-white/80">{tasks.length} tasks</div>
+      <div className="mb-3 space-y-1 text-xs">
+        {tasks.slice(0, 2).map((task, idx) => (
+          <div key={idx} className="flex items-center gap-1.5">
+            <span className="text-xs">•</span>
+            <span className="line-clamp-1">{task.title}</span>
+          </div>
+        ))}
+        {tasks.length > 2 && (
+          <div className="text-xs opacity-75">+ {tasks.length - 2} more...</div>
+        )}
+      </div>
+      <button
+        onClick={handleUseTemplate}
+        className="w-full rounded bg-white px-3 py-1.5 text-xs font-semibold text-gray-900 transition-colors hover:bg-gray-100"
+      >
+        Use Template
+      </button>
+    </div>
+  );
+}
+
 export default function TodosPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -85,8 +142,8 @@ export default function TodosPage() {
 
   return (
     <>
-      <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-gray-900 sm:text-2xl">My Kanban Board</h2>
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-gray-900 sm:text-xl">My Kanban Board</h2>
         <button
           type="button"
           onClick={() => setModalOpen(true)}
@@ -100,28 +157,28 @@ export default function TodosPage() {
         {COLUMNS.map((column) => {
           const columnTodos = getTodosByStatus(column.id as Status);
           return (
-            <div key={column.id} className={`${column.bgColor} rounded-xl p-4 min-h-[400px]`}>
-              <div className="mb-4 flex items-center justify-between">
-                <h3 className="font-semibold text-gray-800">{column.title}</h3>
-                <span className="rounded-full bg-white px-2 py-1 text-xs font-medium text-gray-600">
+            <div key={column.id} className={`${column.bgColor} rounded-lg p-3 min-h-[350px]`}>
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-800">{column.title}</h3>
+                <span className="rounded-full bg-white px-1.5 py-0.5 text-xs font-medium text-gray-600">
                   {columnTodos.length}
                 </span>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {columnTodos.length === 0 && (
-                  <div className="rounded-lg border-2 border-dashed border-gray-300 bg-white/50 p-6 text-center text-sm text-gray-400">
+                  <div className="rounded-lg border-2 border-dashed border-gray-300 bg-white/50 p-4 text-center text-xs text-gray-400">
                     Drop tasks here
                   </div>
                 )}
                 {columnTodos.map((todo) => (
                   <div
                     key={todo.id}
-                    className="group relative rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition-all hover:shadow-md"
+                    className="group relative rounded-lg border border-gray-200 bg-white p-3 shadow-sm transition-all hover:shadow-md"
                   >
-                    <div className="mb-2 font-medium text-gray-900">{todo.title}</div>
-                    <div className="mb-3 flex flex-wrap items-center gap-2">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${priorityColor(todo.priority)}`}>
+                    <div className="mb-2 text-sm font-medium text-gray-900">{todo.title}</div>
+                    <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                      <span className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${priorityColor(todo.priority)}`}>
                         {todo.priority}
                       </span>
                       {todo.dueDate && (
@@ -182,6 +239,84 @@ export default function TodosPage() {
             </div>
           );
         })}
+      </div>
+
+      {/* Quick Start Templates */}
+      <div className="mt-6">
+        <h3 className="mb-4 text-base font-semibold text-gray-900">🚀 Quick Start Templates</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <TemplateCard
+            icon="📅"
+            title="Morning Routine"
+            tasks={[
+              { title: "Wake up early ⏰", priority: "High" as Priority },
+              { title: "Exercise 30 mins 🏃", priority: "Medium" as Priority },
+              { title: "Healthy breakfast 🍳", priority: "Medium" as Priority },
+              { title: "Review daily goals 📋", priority: "High" as Priority },
+              { title: "Meditate 10 mins 🧘", priority: "Low" as Priority },
+            ]}
+            bgColor="from-blue-500 to-cyan-500"
+            onCreate={handleCreate}
+            userId={user?.uid}
+          />
+          <TemplateCard
+            icon="💼"
+            title="Work Day Essentials"
+            tasks={[
+              { title: "Check emails 📧", priority: "High" as Priority },
+              { title: "Team standup meeting 👥", priority: "High" as Priority },
+              { title: "Focus work block 💻", priority: "High" as Priority },
+              { title: "Lunch break 🍽️", priority: "Medium" as Priority },
+              { title: "Review progress 📊", priority: "Medium" as Priority },
+              { title: "Plan tomorrow 📝", priority: "Low" as Priority },
+            ]}
+            bgColor="from-indigo-500 to-purple-500"
+            onCreate={handleCreate}
+            userId={user?.uid}
+          />
+          <TemplateCard
+            icon="🏠"
+            title="Weekend Chores"
+            tasks={[
+              { title: "Grocery shopping 🛒", priority: "High" as Priority },
+              { title: "Laundry 👕", priority: "Medium" as Priority },
+              { title: "Clean apartment 🧹", priority: "Medium" as Priority },
+              { title: "Meal prep 🍱", priority: "Low" as Priority },
+              { title: "Pay bills 💳", priority: "High" as Priority },
+            ]}
+            bgColor="from-green-500 to-emerald-500"
+            onCreate={handleCreate}
+            userId={user?.uid}
+          />
+          <TemplateCard
+            icon="🎯"
+            title="Productivity Boost"
+            tasks={[
+              { title: "Clear inbox to zero 📥", priority: "High" as Priority },
+              { title: "Organize workspace 🗂️", priority: "Medium" as Priority },
+              { title: "Update task lists 📝", priority: "High" as Priority },
+              { title: "Learn something new 📚", priority: "Low" as Priority },
+              { title: "Network/reach out 🤝", priority: "Medium" as Priority },
+            ]}
+            bgColor="from-orange-500 to-red-500"
+            onCreate={handleCreate}
+            userId={user?.uid}
+          />
+          <TemplateCard
+            icon="💪"
+            title="Self Care Sunday"
+            tasks={[
+              { title: "Sleep in 😴", priority: "High" as Priority },
+              { title: "Skincare routine ✨", priority: "Medium" as Priority },
+              { title: "Read a book 📖", priority: "Low" as Priority },
+              { title: "Call family/friends 📞", priority: "Medium" as Priority },
+              { title: "Journal & reflect 📓", priority: "Low" as Priority },
+            ]}
+            bgColor="from-pink-500 to-rose-500"
+            onCreate={handleCreate}
+            userId={user?.uid}
+          />
+        </div>
       </div>
 
       <AddTodoModal open={modalOpen} onClose={() => setModalOpen(false)} onCreate={handleCreate} />
