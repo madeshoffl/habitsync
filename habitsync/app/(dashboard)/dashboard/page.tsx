@@ -133,22 +133,22 @@ export default function DashboardPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <div className="flex items-center opacity-0 transition-opacity group-hover:opacity-100">
+              <div className="flex items-center gap-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
                 <button
                   type="button"
                   onClick={() => handleEditClick(habit)}
-                  className="rounded-md p-1.5 text-blue-600 transition-colors hover:bg-blue-50"
+                  className="rounded-md p-2 text-blue-600 transition-colors hover:bg-blue-50 md:p-1.5"
                   aria-label="Edit habit"
                 >
-                  <Pencil size={16} />
+                  <Pencil className="h-[18px] w-[18px] md:h-4 md:w-4" />
                 </button>
                 <button
                   type="button"
                   onClick={() => handleDeleteHabit(habit.id)}
-                  className="rounded-md p-1.5 text-red-600 transition-colors hover:bg-red-50"
+                  className="rounded-md p-2 text-red-600 transition-colors hover:bg-red-50 md:p-1.5"
                   aria-label="Delete habit"
                 >
-                  <Trash2 size={16} />
+                  <Trash2 className="h-[18px] w-[18px] md:h-4 md:w-4" />
                 </button>
               </div>
               <input
