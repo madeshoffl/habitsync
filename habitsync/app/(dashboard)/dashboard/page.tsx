@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import AddHabitModal from "../../../components/AddHabitModal";
+import HabitGarden from "../../../components/HabitGarden";
 import { useAuth } from "../../../context/AuthContext";
 import { useRouter } from "next/navigation";
 import { db } from "../../../lib/firebase";
@@ -111,6 +112,8 @@ export default function DashboardPage() {
 
   return (
     <>
+      <HabitGarden />
+
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-xl font-semibold text-gray-900 sm:text-2xl">Today's Habits</h2>
         <button
