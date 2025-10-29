@@ -7,7 +7,7 @@ import { useAuth } from "../../../context/AuthContext";
 import { useRouter } from "next/navigation";
 import { db } from "../../../lib/firebase";
 import { collection, addDoc, onSnapshot, orderBy, query, where, serverTimestamp, doc, updateDoc, deleteDoc } from "firebase/firestore";
-import { Pencil, Trash2, Plus, CheckCircle2, Clock } from 'lucide-react';
+import { Pencil, Trash2, Plus, CheckCircle2, Clock, Search, Filter, ArrowUpDown } from 'lucide-react';
 import { motion, AnimatePresence } from "framer-motion";
 import { checkAndResetHabits, updateHabitCompletion, getNextResetTime, formatResetTime } from "../../../utils/habitReset";
 import { getLongestActiveStreak, recordDailyCompletionRate } from "../../../lib/stats";
@@ -30,6 +30,9 @@ export default function DashboardPage() {
   const router = useRouter();
   const [habits, setHabits] = useState<Habit[]>([]);
   const [nextResetTime, setNextResetTime] = useState<string>("");
+  const [filter, setFilter] = useState<"All" | "Completed" | "Pending">("All");
+  const [sortBy, setSortBy] = useState<"streak" | "name" | "category">("streak");
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Check and reset habits on mount and when user changes
   useEffect(() => {
@@ -151,6 +154,43 @@ export default function DashboardPage() {
     pink: "from-pink-500 to-pink-600",
   };
 
+  // Filter and sort habits
+  const filteredAndSortedHabits = useMemo(() => {
+    let filtered = habits;
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(h => 
+        h.name.toLowerCase().includes(query) || 
+        h.category.toLowerCase().includes(query)
+      );
+    }
+
+    // Apply status filter
+    if (filter === "Completed") {
+      filtered = filtered.filter(h => h.completed);
+    } else if (filter === "Pending") {
+      filtered = filtered.filter(h => !h.completed);
+    }
+
+    // Apply sort
+    const sorted = [...filtered].sort((a, b) => {
+      switch (sortBy) {
+        case "streak":
+          return b.streak - a.streak;
+        case "name":
+          return a.name.localeCompare(b.name);
+        case "category":
+          return a.category.localeCompare(b.category);
+        default:
+          return 0;
+      }
+    });
+
+    return sorted;
+  }, [habits, filter, sortBy, searchQuery]);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -159,26 +199,82 @@ export default function DashboardPage() {
     >
       <HabitGarden />
 
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold text-gray-900">Today's Habits</h2>
-          {nextResetTime && (
-            <div className="mt-1 flex items-center gap-1.5 text-sm text-gray-600">
-              <Clock className="h-4 w-4" />
-              <span>Resets at {nextResetTime}</span>
-            </div>
-          )}
+      <div className="mb-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-3xl font-bold text-gray-900">Today's Habits</h2>
+            {nextResetTime && (
+              <div className="mt-1 flex items-center gap-1.5 text-sm text-gray-600">
+                <Clock className="h-4 w-4" />
+                <span>Resets at {nextResetTime}</span>
+              </div>
+            )}
+          </div>
+          <motion.button
+            type="button"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/30 transition-all hover:shadow-xl hover:shadow-blue-500/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            onClick={handleAddClick}
+          >
+            <Plus className="h-5 w-5" />
+            Add New Habit
+          </motion.button>
         </div>
-        <motion.button
-          type="button"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/30 transition-all hover:shadow-xl hover:shadow-blue-500/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-          onClick={handleAddClick}
-        >
-          <Plus className="h-5 w-5" />
-          Add New Habit
-        </motion.button>
+
+        {/* Search Bar */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search habits by name or category..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full rounded-xl border border-gray-300 bg-white py-3 pl-10 pr-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+          />
+        </div>
+
+        {/* Filters and Sort */}
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Filter Buttons */}
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-gray-600" />
+            <span className="text-sm font-medium text-gray-700">Filter:</span>
+            {(["All", "Completed", "Pending"] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${
+                  filter === f
+                    ? "bg-blue-600 text-white shadow-md"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+
+          {/* Sort Options */}
+          <div className="flex items-center gap-2">
+            <ArrowUpDown className="h-4 w-4 text-gray-600" />
+            <span className="text-sm font-medium text-gray-700">Sort:</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as "streak" | "name" | "category")}
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            >
+              <option value="streak">By Streak</option>
+              <option value="name">By Name</option>
+              <option value="category">By Category</option>
+            </select>
+          </div>
+
+          {/* Results count */}
+          <div className="ml-auto text-sm text-gray-600">
+            Showing {filteredAndSortedHabits.length} of {habits.length} habits
+          </div>
+        </div>
       </div>
 
       {habits.length === 0 ? (
@@ -201,10 +297,20 @@ export default function DashboardPage() {
             Create Your First Habit
           </motion.button>
         </motion.div>
-      ) : (
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-          <AnimatePresence mode="popLayout">
-            {habits.map((habit, index) => (
+      ) : filteredAndSortedHabits.length === 0 ? (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="rounded-2xl border-2 border-dashed border-gray-300 bg-gradient-to-br from-gray-50 to-blue-50/30 p-12 text-center shadow-sm"
+          >
+            <div className="text-6xl mb-4">🔍</div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">No habits found</h3>
+            <p className="text-gray-600">Try adjusting your search or filters</p>
+          </motion.div>
+        ) : (
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+            <AnimatePresence mode="popLayout">
+              {filteredAndSortedHabits.map((habit, index) => (
               <motion.div
                 key={habit.id}
                 initial={{ opacity: 0, y: 20 }}
@@ -291,10 +397,10 @@ export default function DashboardPage() {
                   </div>
                 </div>
               </motion.div>
-            ))}
-          </AnimatePresence>
-        </div>
-      )}
+              ))}
+            </AnimatePresence>
+          </div>
+        )}
 
       <AddHabitModal open={modalOpen} onClose={() => setModalOpen(false)} onCreate={(h) => handleCreateHabit(h)} onUpdate={handleUpdateHabit} editMode={editMode} habitToEdit={habitToEdit} />
     </motion.div>

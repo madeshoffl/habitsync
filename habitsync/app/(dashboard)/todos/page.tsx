@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../../context/AuthContext";
 import AddTodoModal from "../../../components/AddTodoModal";
 import { db } from "../../../lib/firebase";
 import { collection, addDoc, onSnapshot, query, where, orderBy, doc, updateDoc, deleteDoc, serverTimestamp, Timestamp } from "firebase/firestore";
-import { Trash2, Plus, CheckCircle2, Circle } from 'lucide-react';
+import { Trash2, Plus, CheckCircle2, Circle, Filter, ArrowUpDown } from 'lucide-react';
 import { motion, AnimatePresence } from "framer-motion";
 
 type Priority = "High" | "Medium" | "Low";
@@ -95,6 +95,8 @@ export default function TodosPage() {
   const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
   const [todos, setTodos] = useState<Todo[]>([]);
+  const [filter, setFilter] = useState<"All" | "High Priority" | "Due Today">("All");
+  const [sortBy, setSortBy] = useState<"priority" | "dueDate">("priority");
 
   useEffect(() => {
     if (loading) return;
@@ -148,8 +150,43 @@ export default function TodosPage() {
     await updateDoc(doc(db, "todos", id), updateData);
   }
 
+  // Filter and sort todos
+  const filteredTodos = useMemo(() => {
+    let filtered = todos;
+
+    // Apply filter
+    if (filter === "High Priority") {
+      filtered = filtered.filter(t => t.priority === "High");
+    } else if (filter === "Due Today") {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      filtered = filtered.filter(t => {
+        if (!t.dueDate) return false;
+        const dueDate = t.dueDate.toDate();
+        dueDate.setHours(0, 0, 0, 0);
+        return dueDate.getTime() === today.getTime();
+      });
+    }
+
+    // Apply sort
+    const sorted = [...filtered].sort((a, b) => {
+      if (sortBy === "priority") {
+        const priorityOrder = { High: 0, Medium: 1, Low: 2 };
+        return priorityOrder[a.priority] - priorityOrder[b.priority];
+      } else if (sortBy === "dueDate") {
+        if (!a.dueDate && !b.dueDate) return 0;
+        if (!a.dueDate) return 1;
+        if (!b.dueDate) return -1;
+        return a.dueDate.toDate().getTime() - b.dueDate.toDate().getTime();
+      }
+      return 0;
+    });
+
+    return sorted;
+  }, [todos, filter, sortBy]);
+
   function getTodosByStatus(status: Status): Todo[] {
-    return todos.filter(t => t.status === status);
+    return filteredTodos.filter(t => t.status === status);
   }
 
   return (
@@ -158,18 +195,61 @@ export default function TodosPage() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
     >
-      <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-3xl font-bold text-gray-900">My Kanban Board</h2>
-        <motion.button
-          type="button"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => setModalOpen(true)}
-          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/30 transition-all hover:shadow-xl hover:shadow-blue-500/40"
-        >
-          <Plus className="h-5 w-5" />
-          Add To-Do
-        </motion.button>
+      <div className="mb-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-3xl font-bold text-gray-900">My Kanban Board</h2>
+          <motion.button
+            type="button"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setModalOpen(true)}
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/30 transition-all hover:shadow-xl hover:shadow-blue-500/40"
+          >
+            <Plus className="h-5 w-5" />
+            Add To-Do
+          </motion.button>
+        </div>
+
+        {/* Filters and Sort */}
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Filter Buttons */}
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-gray-600" />
+            <span className="text-sm font-medium text-gray-700">Filter:</span>
+            {(["All", "High Priority", "Due Today"] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${
+                  filter === f
+                    ? "bg-blue-600 text-white shadow-md"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+
+          {/* Sort Options */}
+          <div className="flex items-center gap-2">
+            <ArrowUpDown className="h-4 w-4 text-gray-600" />
+            <span className="text-sm font-medium text-gray-700">Sort:</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as "priority" | "dueDate")}
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            >
+              <option value="priority">By Priority</option>
+              <option value="dueDate">By Due Date</option>
+            </select>
+          </div>
+
+          {/* Results count */}
+          <div className="ml-auto text-sm text-gray-600">
+            Showing {filteredTodos.length} of {todos.length} todos
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">

@@ -9,9 +9,11 @@ import { motion } from "framer-motion";
 import { 
   Calendar, Trophy, Activity, TrendingUp, Award, 
   Bell, Settings, Download, Trash2, LogOut, 
-  Flame, CheckCircle
+  Flame, CheckCircle, Clock, Sun, Moon
 } from "lucide-react";
 import { calculateLevel, getBestStreak, getActiveStreaks, getTotalCompletions, type Habit as StatsHabit } from "../../../lib/stats";
+import { useTheme } from "next-themes";
+import toast from "react-hot-toast";
 
 type Habit = {
   streak: number;
@@ -33,6 +35,15 @@ export default function SettingsPage() {
   const [memberSince, setMemberSince] = useState("");
   const [achievements, setAchievements] = useState<Record<string, { earned: boolean; date?: string }>>({});
   const [notifications, setNotifications] = useState(false);
+  const [dailyReminderTime, setDailyReminderTime] = useState("09:00");
+  const [weekStartsOn, setWeekStartsOn] = useState<"Sunday" | "Monday">("Sunday");
+  const [loading, setLoading] = useState(false);
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (authLoading) return;
@@ -41,7 +52,38 @@ export default function SettingsPage() {
       return;
     }
     fetchStats();
+    loadUserPreferences();
   }, [user, authLoading, router]);
+
+  async function loadUserPreferences() {
+    if (!user) return;
+    try {
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        setNotifications(data.emailNotifications ?? false);
+        setDailyReminderTime(data.dailyReminderTime ?? "09:00");
+        setWeekStartsOn(data.weekStartsOn ?? "Sunday");
+      }
+    } catch (error) {
+      console.error("Error loading preferences:", error);
+    }
+  }
+
+  async function saveUserPreference(field: string, value: any) {
+    if (!user) return;
+    try {
+      setLoading(true);
+      const userRef = doc(db, "users", user.uid);
+      await updateDoc(userRef, { [field]: value });
+      toast.success("Preferences saved!");
+    } catch (error) {
+      console.error("Error saving preference:", error);
+      toast.error("Failed to save preference");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function fetchStats() {
     if (!user) return;
@@ -130,11 +172,29 @@ export default function SettingsPage() {
   async function exportData() {
     if (!user) return;
     try {
+      setLoading(true);
       const habitsQuery = query(collection(db, "habits"), where("userId", "==", user.uid));
-      const habitsSnapshot = await getDocs(habitsQuery);
-      const habits = habitsSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      const todosQuery = query(collection(db, "todos"), where("userId", "==", user.uid));
       
-      const data = { habits, stats, exportedAt: new Date().toISOString() };
+      const [habitsSnapshot, todosSnapshot] = await Promise.all([
+        getDocs(habitsQuery),
+        getDocs(todosQuery)
+      ]);
+      
+      const habits = habitsSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      const todos = todosSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+      const userData = userDoc.exists() ? userDoc.data() : {};
+      
+      const data = { 
+        habits, 
+        todos,
+        stats,
+        userData: { email: userData.email, displayName: userData.displayName, xp: userData.xp },
+        exportedAt: new Date().toISOString() 
+      };
+      
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -142,8 +202,12 @@ export default function SettingsPage() {
       a.download = `habitsync-export-${new Date().toISOString().split('T')[0]}.json`;
       a.click();
       URL.revokeObjectURL(url);
+      toast.success("Data exported successfully!");
     } catch (error) {
       console.error("Error exporting data:", error);
+      toast.error("Failed to export data");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -152,14 +216,58 @@ export default function SettingsPage() {
     if (!user) return;
     
     try {
+      setLoading(true);
       const habitsQuery = query(collection(db, "habits"), where("userId", "==", user.uid));
       const habitsSnapshot = await getDocs(habitsQuery);
       const promises = habitsSnapshot.docs
         .filter(d => d.data().completed)
         .map(d => deleteDoc(doc(db, "habits", d.id)));
       await Promise.all(promises);
+      toast.success("Completed habits cleared successfully!");
+      await fetchStats();
     } catch (error) {
       console.error("Error clearing completed:", error);
+      toast.error("Failed to clear completed habits");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function resetAllProgress() {
+    if (!user) return;
+    
+    const confirmed = confirm(
+      "Are you sure you want to reset ALL progress? This will delete all habits and todos. This action cannot be undone!"
+    );
+    
+    if (!confirmed) return;
+    
+    try {
+      setLoading(true);
+      
+      // Delete all habits
+      const habitsQuery = query(collection(db, "habits"), where("userId", "==", user.uid));
+      const habitsSnapshot = await getDocs(habitsQuery);
+      const habitPromises = habitsSnapshot.docs.map(d => deleteDoc(doc(db, "habits", d.id)));
+      
+      // Delete all todos
+      const todosQuery = query(collection(db, "todos"), where("userId", "==", user.uid));
+      const todosSnapshot = await getDocs(todosQuery);
+      const todoPromises = todosSnapshot.docs.map(d => deleteDoc(doc(db, "todos", d.id)));
+      
+      await Promise.all([...habitPromises, ...todoPromises]);
+      
+      // Reset XP
+      const userRef = doc(db, "users", user.uid);
+      await updateDoc(userRef, { xp: 0 });
+      
+      toast.success("All progress has been reset");
+      await fetchStats();
+    } catch (error) {
+      console.error("Error resetting progress:", error);
+      toast.error("Failed to reset progress");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -296,7 +404,7 @@ export default function SettingsPage() {
           <Settings size={24} />
           Preferences
         </h3>
-        <div className="space-y-4">
+        <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Bell size={20} className="text-gray-600" />
@@ -306,14 +414,89 @@ export default function SettingsPage() {
               </div>
             </div>
             <button
-              onClick={() => setNotifications(!notifications)}
+              onClick={async () => {
+                const newValue = !notifications;
+                setNotifications(newValue);
+                await saveUserPreference("emailNotifications", newValue);
+              }}
+              disabled={loading}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                 notifications ? "bg-blue-600" : "bg-gray-300"
-              }`}
+              } ${loading ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
             >
               <span
                 className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
                   notifications ? "translate-x-6" : "translate-x-1"
+                }`}
+              />
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Clock size={20} className="text-gray-600" />
+              <div>
+                <div className="font-medium text-gray-900">Daily Reminder Time</div>
+                <div className="text-sm text-gray-600">When to receive daily reminders</div>
+              </div>
+            </div>
+            <input
+              type="time"
+              value={dailyReminderTime}
+              onChange={async (e) => {
+                const newValue = e.target.value;
+                setDailyReminderTime(newValue);
+                await saveUserPreference("dailyReminderTime", newValue);
+              }}
+              disabled={loading}
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Calendar size={20} className="text-gray-600" />
+              <div>
+                <div className="font-medium text-gray-900">Week Starts On</div>
+                <div className="text-sm text-gray-600">First day of the week for calendar</div>
+              </div>
+            </div>
+            <select
+              value={weekStartsOn}
+              onChange={async (e) => {
+                const newValue = e.target.value as "Sunday" | "Monday";
+                setWeekStartsOn(newValue);
+                await saveUserPreference("weekStartsOn", newValue);
+              }}
+              disabled={loading}
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+            >
+              <option value="Sunday">Sunday</option>
+              <option value="Monday">Monday</option>
+            </select>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {mounted && theme === "dark" ? (
+                <Moon size={20} className="text-gray-600" />
+              ) : (
+                <Sun size={20} className="text-gray-600" />
+              )}
+              <div>
+                <div className="font-medium text-gray-900">Theme</div>
+                <div className="text-sm text-gray-600">Light or dark mode</div>
+              </div>
+            </div>
+            <button
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              disabled={!mounted}
+              className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors bg-gray-300 data-[state=checked]:bg-blue-600"
+              aria-label="Toggle theme"
+            >
+              <span
+                className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
+                  mounted && theme === "dark" ? "translate-x-6" : "translate-x-1"
                 }`}
               />
             </button>
@@ -342,10 +525,11 @@ export default function SettingsPage() {
           </button>
           <button
             onClick={clearCompleted}
-            className="flex w-full items-center gap-3 rounded-lg border border-orange-300 bg-white px-4 py-3 text-left transition-colors hover:bg-orange-50"
+            disabled={loading}
+            className="flex w-full items-center gap-3 rounded-lg border border-orange-300 bg-white px-4 py-3 text-left transition-colors hover:bg-orange-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Trash2 size={18} className="text-orange-600" />
-            <span className="font-medium text-gray-900">Clear All Completed Habits</span>
+            <span className="font-medium text-gray-900">{loading ? "Clearing..." : "Clear All Completed Habits"}</span>
           </button>
         </div>
       </motion.div>
@@ -363,10 +547,11 @@ export default function SettingsPage() {
         </h3>
         <div className="space-y-3">
           <button
-            onClick={() => alert("Reset functionality coming soon!")}
-            className="w-full rounded-lg border-2 border-red-300 bg-white px-4 py-3 font-medium text-red-700 transition-colors hover:bg-red-50"
+            onClick={resetAllProgress}
+            disabled={loading}
+            className="w-full rounded-lg border-2 border-red-300 bg-white px-4 py-3 font-medium text-red-700 transition-colors hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Reset All Progress
+            {loading ? "Resetting..." : "Reset All Progress"}
           </button>
           <button
             onClick={async () => {
