@@ -11,6 +11,9 @@ import { Pencil, Trash2, Plus, CheckCircle2, Clock, Search, Filter, ArrowUpDown 
 import { motion, AnimatePresence } from "framer-motion";
 import { checkAndResetHabits, updateHabitCompletion, getNextResetTime, formatResetTime } from "../../../utils/habitReset";
 import { getLongestActiveStreak, recordDailyCompletionRate } from "../../../lib/stats";
+import { recordHabitCompletion } from "../../../lib/analytics";
+import { addHabitNote } from "../../../lib/notes";
+import HabitNoteModal from "../../../components/HabitNoteModal";
 
 type Habit = {
   id: number;
@@ -33,6 +36,8 @@ export default function DashboardPage() {
   const [filter, setFilter] = useState<"All" | "Completed" | "Pending">("All");
   const [sortBy, setSortBy] = useState<"streak" | "name" | "category">("streak");
   const [searchQuery, setSearchQuery] = useState("");
+  const [noteModalOpen, setNoteModalOpen] = useState(false);
+  const [habitForNote, setHabitForNote] = useState<Habit | null>(null);
 
   // Check and reset habits on mount and when user changes
   useEffect(() => {
@@ -97,11 +102,25 @@ export default function DashboardPage() {
     // Use the utility function that handles lastCompletedDate
     await updateHabitCompletion(String(h.id), newCompleted, newStreak);
     
+    // If completing, record completion with analytics and show note modal
+    if (newCompleted) {
+      await recordHabitCompletion(user.uid, String(h.id), h.name, h.category);
+      // Show note modal for reflection
+      setHabitForNote(h);
+      setNoteModalOpen(true);
+    }
+    
     // Record daily completion rate after update
     if (user) {
       const completedCount = updatedHabits.filter(h => h.completed).length;
       await recordDailyCompletionRate(user.uid, updatedHabits.length, completedCount);
     }
+  }
+
+  async function handleSaveNote(note: string) {
+    if (!user || !habitForNote) return;
+    await addHabitNote(user.uid, String(habitForNote.id), habitForNote.name, note);
+    setHabitForNote(null);
   }
 
   async function handleCreateHabit(payload: { name: string; category: Habit["category"]; icon: string; color: Habit["color"]; }) {
@@ -403,6 +422,17 @@ export default function DashboardPage() {
         )}
 
       <AddHabitModal open={modalOpen} onClose={() => setModalOpen(false)} onCreate={(h) => handleCreateHabit(h)} onUpdate={handleUpdateHabit} editMode={editMode} habitToEdit={habitToEdit} />
+      {habitForNote && (
+        <HabitNoteModal
+          open={noteModalOpen}
+          habitName={habitForNote.name}
+          onClose={() => {
+            setNoteModalOpen(false);
+            setHabitForNote(null);
+          }}
+          onSave={handleSaveNote}
+        />
+      )}
     </motion.div>
   );
 }

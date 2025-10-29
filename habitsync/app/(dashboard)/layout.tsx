@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "../../context/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
-import { BarChart3, Home, ListTodo, Settings, Calendar } from "lucide-react";
+import { BarChart3, Home, ListTodo, Settings, Calendar, TrendingUp, BookOpen } from "lucide-react";
 import { calculateLevel } from "../../lib/stats";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -33,8 +33,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const navItems = [
     { href: "/dashboard", icon: Home, label: "Home" },
     { href: "/calendar", icon: Calendar, label: "Calendar" },
+    { href: "/analytics", icon: TrendingUp, label: "Analytics" },
     { href: "/stats", icon: BarChart3, label: "Stats" },
     { href: "/todos", icon: ListTodo, label: "To-Dos" },
+    { href: "/notes", icon: BookOpen, label: "Notes" },
     { href: "/settings", icon: Settings, label: "Settings" },
   ];
 
