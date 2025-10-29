@@ -11,6 +11,7 @@ interface UseFirestoreQueryOptions {
 
 export function useFirestoreQuery<T extends DocumentData>(
   queryFn: (() => Query) | null,
+  cacheKey: string,
   options: UseFirestoreQueryOptions = {}
 ) {
   const [data, setData] = useState<T[]>([]);
@@ -26,8 +27,7 @@ export function useFirestoreQuery<T extends DocumentData>(
     }
 
     const query = queryFn();
-    const cacheKey = query.path || "default";
-    const CACHE_DURATION = 30000; // 30 values
+    const CACHE_DURATION = 30000; // 30 seconds
 
     // Check cache first
     if (!options.disableCache) {
@@ -93,7 +93,7 @@ export function useFirestoreQuery<T extends DocumentData>(
         toast.error("Failed to load data. Please try again.");
       }
     }
-  }, [queryFn, options.disableCache, options.onError]);
+  }, [queryFn, cacheKey, options.disableCache, options.onError]);
 
   return { data, loading, error };
 }
