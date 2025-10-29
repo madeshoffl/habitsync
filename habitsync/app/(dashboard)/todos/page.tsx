@@ -18,6 +18,7 @@ type Todo = {
   priority: Priority;
   status: Status;
   dueDate?: Timestamp | null;
+  completedAt?: Timestamp | null;
   createdAt: Timestamp;
 };
 
@@ -134,7 +135,17 @@ export default function TodosPage() {
   }
 
   async function handleStatusChange(id: string, newStatus: Status) {
-    await updateDoc(doc(db, "todos", id), { status: newStatus });
+    const updateData: any = { status: newStatus };
+    
+    // If marking as done, add completion timestamp
+    if (newStatus === "done") {
+      updateData.completedAt = serverTimestamp();
+    } else {
+      // If reopening/unmarking as done, remove completion timestamp
+      updateData.completedAt = null;
+    }
+    
+    await updateDoc(doc(db, "todos", id), updateData);
   }
 
   function getTodosByStatus(status: Status): Todo[] {

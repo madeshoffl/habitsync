@@ -5,7 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "../../context/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
-import { BarChart3, Home, ListTodo, Settings } from "lucide-react";
+import { BarChart3, Home, ListTodo, Settings, Calendar } from "lucide-react";
+import { calculateLevel } from "../../lib/stats";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -13,8 +14,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const { user, xp } = useAuth();
 
-  // Calculate level and progress
-  const level = Math.floor((xp ?? 0) / 100) || 1;
+  // Calculate level and progress using utility function
+  const level = calculateLevel(xp ?? 0);
   const xpInLevel = (xp ?? 0) % 100;
   const progressPercent = xpInLevel;
 
@@ -31,6 +32,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const navItems = [
     { href: "/dashboard", icon: Home, label: "Home" },
+    { href: "/calendar", icon: Calendar, label: "Calendar" },
     { href: "/stats", icon: BarChart3, label: "Stats" },
     { href: "/todos", icon: ListTodo, label: "To-Dos" },
     { href: "/settings", icon: Settings, label: "Settings" },

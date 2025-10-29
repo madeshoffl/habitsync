@@ -11,6 +11,7 @@ import {
   Bell, Settings, Download, Trash2, LogOut, 
   Flame, CheckCircle
 } from "lucide-react";
+import { calculateLevel, getBestStreak, getActiveStreaks, getTotalCompletions, type Habit as StatsHabit } from "../../../lib/stats";
 
 type Habit = {
   streak: number;
@@ -48,12 +49,22 @@ export default function SettingsPage() {
     try {
       const habitsQuery = query(collection(db, "habits"), where("userId", "==", user.uid));
       const habitsSnapshot = await getDocs(habitsQuery);
-      const habits = habitsSnapshot.docs.map(d => ({ ...d.data(), name: d.data().name } as Habit & { name: string }));
+      const habits = habitsSnapshot.docs.map(d => ({ ...d.data(), name: d.data().name, id: d.id } as Habit & { name: string; id: string }));
+      
+      // Convert to StatsHabit format for utility functions
+      const habitsForStats: StatsHabit[] = habits.map(h => ({
+        id: h.id,
+        name: h.name,
+        streak: h.streak || 0,
+        completed: h.completed || false,
+        userId: user.uid,
+      }));
       
       const totalHabits = habits.length;
-      const totalCompletions = habits.filter(h => h.completed).length;
-      const activeStreaks = habits.filter(h => h.streak > 0).length;
-      const bestStreakData = habits.reduce((max, h) => h.streak > max.streak ? { streak: h.streak, habit: h.name } : max, { streak: 0, habit: "" });
+      const totalCompletions = await getTotalCompletions(user.uid, habitsForStats);
+      const activeStreaks = getActiveStreaks(habitsForStats);
+      const bestStreak = getBestStreak(habitsForStats);
+      const bestStreakHabit = habits.find(h => h.streak === bestStreak)?.name || "";
       
       const userDoc = await getDoc(doc(db, "users", user.uid));
       let daysActive = 0;
@@ -71,20 +82,21 @@ export default function SettingsPage() {
         totalHabits,
         totalCompletions,
         activeStreaks,
-        bestStreak: bestStreakData.streak,
-        bestStreakHabit: bestStreakData.habit,
+        bestStreak,
+        bestStreakHabit,
         daysActive,
         successRate,
       });
 
-      // Check achievements
+      // Check achievements using utility functions
+      const currentLevel = calculateLevel(xp ?? 0);
       setAchievements({
         firstSteps: { earned: totalHabits >= 1 },
-        weekWarrior: { earned: bestStreakData.streak >= 7 },
+        weekWarrior: { earned: bestStreak >= 7 },
         habitHero: { earned: totalHabits >= 10 },
         centurion: { earned: totalCompletions >= 100 },
-        levelFive: { earned: Math.floor((xp ?? 0) / 100) >= 5 },
-        perfectWeek: { earned: false },
+        levelFive: { earned: currentLevel >= 5 },
+        perfectWeek: { earned: false }, // TODO: Implement perfect week check
       });
     } catch (error) {
       console.error("Error fetching stats:", error);
@@ -93,7 +105,7 @@ export default function SettingsPage() {
 
   if (authLoading) return <div className="text-center p-8">Loading...</div>;
 
-  const currentLevel = Math.floor((xp ?? 0) / 100) || 1;
+  const currentLevel = calculateLevel(xp ?? 0);
   const xpInLevel = (xp ?? 0) % 100;
   const progressPercent = xpInLevel;
 

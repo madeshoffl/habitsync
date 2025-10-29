@@ -7,8 +7,10 @@ import { useAuth } from "../../../context/AuthContext";
 import { useRouter } from "next/navigation";
 import { db } from "../../../lib/firebase";
 import { collection, addDoc, onSnapshot, orderBy, query, where, serverTimestamp, doc, updateDoc, deleteDoc } from "firebase/firestore";
-import { Pencil, Trash2, Plus, CheckCircle2 } from 'lucide-react';
+import { Pencil, Trash2, Plus, CheckCircle2, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from "framer-motion";
+import { checkAndResetHabits, updateHabitCompletion, getNextResetTime, formatResetTime } from "../../../utils/habitReset";
+import { getLongestActiveStreak, recordDailyCompletionRate } from "../../../lib/stats";
 
 type Habit = {
   id: number;
@@ -27,15 +29,25 @@ export default function DashboardPage() {
   const { user, loading, xp, setXp } = useAuth();
   const router = useRouter();
   const [habits, setHabits] = useState<Habit[]>([]);
+  const [nextResetTime, setNextResetTime] = useState<string>("");
 
+  // Check and reset habits on mount and when user changes
   useEffect(() => {
     if (loading) return;
     if (!user) {
       router.replace("/");
       return;
     }
+
+    // Check if habits need to be reset
+    checkAndResetHabits(user.uid);
+
+    // Set next reset time for display
+    const resetTime = getNextResetTime();
+    setNextResetTime(formatResetTime(resetTime));
+
     const q = query(collection(db, "habits"), where("userId", "==", user.uid), orderBy("createdAt", "desc"));
-    const unsub = onSnapshot(q, (snap) => {
+    const unsub = onSnapshot(q, async (snap) => {
       const next: Habit[] = snap.docs.map((d) => {
         const data = d.data() as any;
         return {
@@ -49,24 +61,44 @@ export default function DashboardPage() {
         } as Habit;
       });
       setHabits(next);
+      
+      // Record daily completion rate
+      const completedCount = next.filter(h => h.completed).length;
+      await recordDailyCompletionRate(user.uid, next.length, completedCount);
     });
     return () => unsub();
   }, [user, loading, router]);
 
+  // Calculate longest active streak using utility function
   const longestStreak = useMemo(() => {
-    return habits.reduce((max, h) => Math.max(max, h.streak), 0);
-  }, [habits]);
+    const habitsWithStreak = habits.map(h => ({ id: String(h.id), streak: h.streak, completed: h.completed, userId: user?.uid || "", name: h.name }));
+    return getLongestActiveStreak(habitsWithStreak);
+  }, [habits, user]);
 
   async function toggleHabitCompleted(habitId: number) {
+    if (!user) return;
     const h = habits.find((x) => x.id === habitId);
     if (!h) return;
     const newCompleted = !h.completed;
-    const delta = newCompleted ? 1 : -1;
-    const newStreak = Math.max(0, h.streak + delta);
-    setHabits((prev) => prev.map((x) => x.id === h.id ? { ...x, completed: newCompleted, streak: newStreak } : x));
+    
+    // Update streak: if completing the habit, increment by 1
+    // If uncompleting, decrement by 1 (but not below 0)
+    const newStreak = newCompleted ? h.streak + 1 : Math.max(0, h.streak - 1);
+    
+    // Update local state
+    const updatedHabits = habits.map((x) => x.id === h.id ? { ...x, completed: newCompleted, streak: newStreak } : x);
+    setHabits(updatedHabits);
+    
     await setXp(Math.max(0, (xp ?? 0) + (newCompleted ? 10 : -10)));
-    const ref = doc(db, "habits", String(h.id));
-    await updateDoc(ref, { completed: newCompleted, streak: newStreak });
+    
+    // Use the utility function that handles lastCompletedDate
+    await updateHabitCompletion(String(h.id), newCompleted, newStreak);
+    
+    // Record daily completion rate after update
+    if (user) {
+      const completedCount = updatedHabits.filter(h => h.completed).length;
+      await recordDailyCompletionRate(user.uid, updatedHabits.length, completedCount);
+    }
   }
 
   async function handleCreateHabit(payload: { name: string; category: Habit["category"]; icon: string; color: Habit["color"]; }) {
@@ -128,7 +160,15 @@ export default function DashboardPage() {
       <HabitGarden />
 
       <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-3xl font-bold text-gray-900">Today's Habits</h2>
+        <div>
+          <h2 className="text-3xl font-bold text-gray-900">Today's Habits</h2>
+          {nextResetTime && (
+            <div className="mt-1 flex items-center gap-1.5 text-sm text-gray-600">
+              <Clock className="h-4 w-4" />
+              <span>Resets at {nextResetTime}</span>
+            </div>
+          )}
+        </div>
         <motion.button
           type="button"
           whileHover={{ scale: 1.05 }}

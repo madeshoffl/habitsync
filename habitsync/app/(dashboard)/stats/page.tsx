@@ -6,9 +6,10 @@ import { Line, Pie } from "react-chartjs-2";
 import { useAuth } from "../../../context/AuthContext";
 import { useRouter } from "next/navigation";
 import { db } from "../../../lib/firebase";
-import { collection, query, where, getDocs, doc, getDoc } from "firebase/firestore";
-import { motion, useAnimationFrame } from "framer-motion";
+import { collection, query, where, getDocs } from "firebase/firestore";
+import { motion } from "framer-motion";
 import { TrendingUp, Calendar, Flame, Award } from "lucide-react";
+import { calculateLevel, getBestStreak, calculateCompletionRate, getWeeklyCompletionRates, type Habit as StatsHabit } from "../../../lib/stats";
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement);
 
@@ -27,6 +28,7 @@ export default function StatsPage() {
   const router = useRouter();
   const [habits, setHabits] = useState<Habit[]>([]);
   const [statsLoading, setStatsLoading] = useState(true);
+  const [weeklyData, setWeeklyData] = useState<number[]>([]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -48,6 +50,10 @@ export default function StatsPage() {
         ...doc.data(),
       })) as Habit[];
       setHabits(habitsData);
+      
+      // Fetch real weekly completion rates from Firestore
+      const weeklyRates = await getWeeklyCompletionRates(user.uid);
+      setWeeklyData(weeklyRates);
     } catch (error) {
       console.error("Error fetching stats:", error);
     } finally {
@@ -55,12 +61,20 @@ export default function StatsPage() {
     }
   }
 
-  // Calculate statistics
+  // Calculate statistics using utility functions
   const totalHabits = habits.length;
-  const bestStreak = habits.length > 0 ? Math.max(...habits.map(h => h.streak)) : 0;
+  const habitsForStats: StatsHabit[] = habits.map(h => ({
+    id: h.id,
+    name: h.name,
+    streak: h.streak,
+    completed: h.completed,
+    userId: user?.uid || "",
+  }));
+  
+  const bestStreak = getBestStreak(habitsForStats);
   const bestStreakHabit = habits.find(h => h.streak === bestStreak)?.name || "None";
   const completedThisWeek = habits.filter(h => h.completed).length;
-  const currentLevel = Math.floor((xp ?? 0) / 100);
+  const currentLevel = calculateLevel(xp ?? 0);
 
   // Calculate category counts
   const categoryCounts = {
@@ -71,14 +85,17 @@ export default function StatsPage() {
     Other: habits.filter(h => h.category === "Other").length,
   };
 
-  // Calculate today's completion rate
-  const todayCompletionRate = totalHabits > 0 ? Math.round((completedThisWeek / totalHabits) * 100) : 0;
+  // Calculate today's completion rate using utility function
+  const todayCompletionRate = calculateCompletionRate(habitsForStats);
+
+  // Use real weekly data from Firestore, or fallback to today's rate for all days if no data yet
+  const weekCompletionData = weeklyData.length === 7 ? weeklyData : Array(7).fill(todayCompletionRate);
 
   const lineData = {
     labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
     datasets: [{
       label: "Completion %",
-      data: [todayCompletionRate - 5, todayCompletionRate - 3, todayCompletionRate - 1, todayCompletionRate + 1, todayCompletionRate - 2, todayCompletionRate + 2, todayCompletionRate],
+      data: weekCompletionData,
       borderColor: "#3b82f6",
       backgroundColor: "rgba(59,130,246,0.15)",
       tension: 0.35,
