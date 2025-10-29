@@ -49,7 +49,7 @@ export function useFirestoreQuery<T extends DocumentData>(
           const items = snapshot.docs.map((doc) => ({
             id: doc.id,
             ...doc.data(),
-          })) as T[];
+          } as T));
 
           // Update cache
           if (!options.disableCache) {
