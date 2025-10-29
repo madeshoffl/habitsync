@@ -1,25 +1,25 @@
-// Import the functions you need from the SDKs you need
-import { initializeApp, getApps, getApp } from "firebase/app";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+import { initializeApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
-// Your web app's Firebase configuration
+// Debug: Check what we're getting
+console.log('🔍 Environment Variables Check:');
+console.log('API Key:', process.env.NEXT_PUBLIC_FIREBASE_API_KEY);
+console.log('Auth Domain:', process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN);
+console.log('Project ID:', process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID);
+
 const firebaseConfig = {
-  apiKey: "AIzaSyBLmxk6d3w70R8xMAJquGwZOtpvXKiUwJU",
-  authDomain: "habitsync-6b2e1.firebaseapp.com",
-  projectId: "habitsync-6b2e1",
-  storageBucket: "habitsync-6b2e1.firebasestorage.app",
-  messagingSenderId: "301971734873",
-  appId: "1:301971734873:web:37f334d3d720b378c98c48"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '',
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || '',
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || '',
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || '',
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || '',
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || '',
 };
 
-// Initialize Firebase (guard for Next.js hot reload)
-const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+console.log('🔥 Firebase Config:', firebaseConfig);
 
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-
+const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-
 
