@@ -6,7 +6,8 @@ import { useAuth } from "../../../context/AuthContext";
 import AddTodoModal from "../../../components/AddTodoModal";
 import { db } from "../../../lib/firebase";
 import { collection, addDoc, onSnapshot, query, where, orderBy, doc, updateDoc, deleteDoc, serverTimestamp, Timestamp } from "firebase/firestore";
-import { Trash2 } from 'lucide-react';
+import { Trash2, Plus, CheckCircle2, Circle } from 'lucide-react';
+import { motion, AnimatePresence } from "framer-motion";
 
 type Priority = "High" | "Medium" | "Low";
 type Status = "todo" | "inProgress" | "done";
@@ -141,110 +142,147 @@ export default function TodosPage() {
   }
 
   return (
-    <>
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900 sm:text-xl">My Kanban Board</h2>
-        <button
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+    >
+      <div className="mb-6 flex items-center justify-between">
+        <h2 className="text-3xl font-bold text-gray-900">My Kanban Board</h2>
+        <motion.button
           type="button"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
           onClick={() => setModalOpen(true)}
-          className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
+          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/30 transition-all hover:shadow-xl hover:shadow-blue-500/40"
         >
-          + Add To-Do
-        </button>
+          <Plus className="h-5 w-5" />
+          Add To-Do
+        </motion.button>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        {COLUMNS.map((column) => {
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        {COLUMNS.map((column, colIndex) => {
           const columnTodos = getTodosByStatus(column.id as Status);
           return (
-            <div key={column.id} className={`${column.bgColor} rounded-lg p-3 min-h-[350px]`}>
-              <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-gray-800">{column.title}</h3>
-                <span className="rounded-full bg-white px-1.5 py-0.5 text-xs font-medium text-gray-600">
+            <motion.div
+              key={column.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: colIndex * 0.1 }}
+              className={`rounded-2xl ${column.bgColor} p-4 min-h-[400px] border border-gray-200/50 shadow-md`}
+            >
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-base font-bold text-gray-800">{column.title}</h3>
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-gray-700 shadow-sm">
                   {columnTodos.length}
                 </span>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {columnTodos.length === 0 && (
-                  <div className="rounded-lg border-2 border-dashed border-gray-300 bg-white/50 p-4 text-center text-xs text-gray-400">
-                    Drop tasks here
-                  </div>
-                )}
-                {columnTodos.map((todo) => (
-                  <div
-                    key={todo.id}
-                    className="group relative rounded-lg border border-gray-200 bg-white p-3 shadow-sm transition-all hover:shadow-md"
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="rounded-xl border-2 border-dashed border-gray-300 bg-white/60 p-6 text-center"
                   >
-                    <div className="mb-2 text-sm font-medium text-gray-900">{todo.title}</div>
-                    <div className="mb-2 flex flex-wrap items-center gap-1.5">
-                      <span className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${priorityColor(todo.priority)}`}>
-                        {todo.priority}
-                      </span>
-                      {todo.dueDate && (
-                        <span className="text-xs text-gray-500">
-                          📅 {todo.dueDate.toDate().toLocaleDateString()}
+                    <div className="text-4xl mb-2">📭</div>
+                    <span className="text-sm text-gray-500">No tasks yet</span>
+                  </motion.div>
+                )}
+                <AnimatePresence mode="popLayout">
+                  {columnTodos.map((todo, index) => (
+                    <motion.div
+                      key={todo.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={{ delay: index * 0.05 }}
+                      layout
+                      className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-4 shadow-md transition-all hover:shadow-lg"
+                    >
+                      <div className="mb-3 text-sm font-bold text-gray-900">{todo.title}</div>
+                      <div className="mb-3 flex flex-wrap items-center gap-2">
+                        <span className={`rounded-lg px-2.5 py-1 text-xs font-bold ${priorityColor(todo.priority)}`}>
+                          {todo.priority}
                         </span>
-                      )}
-                    </div>
+                        {todo.dueDate && (
+                          <span className="rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
+                            📅 {todo.dueDate.toDate().toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
 
-                    {/* Action Buttons */}
-                    <div className="flex flex-wrap items-center gap-2">
-                      {todo.status === "todo" && (
-                        <button
-                          onClick={() => handleStatusChange(todo.id, "inProgress")}
-                          className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700"
-                        >
-                          Start
-                        </button>
-                      )}
-                      
-                      {todo.status === "inProgress" && (
-                        <>
-                          <button
-                            onClick={() => handleStatusChange(todo.id, "done")}
-                            className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-green-700"
+                      {/* Action Buttons */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        {todo.status === "todo" && (
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => handleStatusChange(todo.id, "inProgress")}
+                            className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-all hover:shadow-md"
                           >
-                            Complete
-                          </button>
-                          <button
+                            <Circle className="h-3 w-3" />
+                            Start
+                          </motion.button>
+                        )}
+                        
+                        {todo.status === "inProgress" && (
+                          <>
+                            <motion.button
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => handleStatusChange(todo.id, "done")}
+                              className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-green-600 to-green-700 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-all hover:shadow-md"
+                            >
+                              <CheckCircle2 className="h-3 w-3" />
+                              Complete
+                            </motion.button>
+                            <motion.button
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => handleStatusChange(todo.id, "todo")}
+                              className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-bold text-gray-700 transition-all hover:bg-gray-50"
+                            >
+                              Back
+                            </motion.button>
+                          </>
+                        )}
+                        
+                        {todo.status === "done" && (
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
                             onClick={() => handleStatusChange(todo.id, "todo")}
-                            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                            className="rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 transition-all hover:bg-blue-100"
                           >
-                            Back
-                          </button>
-                        </>
-                      )}
-                      
-                      {todo.status === "done" && (
-                        <button
-                          onClick={() => handleStatusChange(todo.id, "todo")}
-                          className="rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100"
+                            Reopen
+                          </motion.button>
+                        )}
+                        
+                        <motion.button
+                          onClick={() => handleDelete(todo.id)}
+                          className="ml-auto rounded-lg bg-red-50 p-1.5 text-red-600 opacity-0 transition-all group-hover:opacity-100 hover:bg-red-100"
+                          aria-label="Delete todo"
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
                         >
-                          Reopen
-                        </button>
-                      )}
-                      
-                      <button
-                        onClick={() => handleDelete(todo.id)}
-                        className="ml-auto rounded-md p-1 text-red-600 hover:bg-red-50 opacity-0 transition-opacity group-hover:opacity-100"
-                        aria-label="Delete todo"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                          <Trash2 size={14} />
+                        </motion.button>
+                      </div>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
               </div>
-            </div>
+            </motion.div>
           );
         })}
       </div>
 
       {/* Quick Start Templates */}
-      <div className="mt-6">
-        <h3 className="mb-4 text-base font-semibold text-gray-900">🚀 Quick Start Templates</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="mt-8">
+        <h3 className="mb-6 text-2xl font-bold text-gray-900">🚀 Quick Start Templates</h3>
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
             <TemplateCard
             icon="📅"
             title="Morning Routine"
@@ -320,6 +358,6 @@ export default function TodosPage() {
       </div>
 
       <AddTodoModal open={modalOpen} onClose={() => setModalOpen(false)} onCreate={handleCreate} />
-    </>
+    </motion.div>
   );
 }

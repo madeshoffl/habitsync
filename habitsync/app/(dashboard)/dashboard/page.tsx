@@ -7,7 +7,8 @@ import { useAuth } from "../../../context/AuthContext";
 import { useRouter } from "next/navigation";
 import { db } from "../../../lib/firebase";
 import { collection, addDoc, onSnapshot, orderBy, query, where, serverTimestamp, doc, updateDoc, deleteDoc } from "firebase/firestore";
-import { Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Trash2, Plus, CheckCircle2 } from 'lucide-react';
+import { motion, AnimatePresence } from "framer-motion";
 
 type Habit = {
   id: number;
@@ -110,64 +111,153 @@ export default function DashboardPage() {
     setModalOpen(true);
   }
 
+  const colorGradients = {
+    blue: "from-blue-500 to-blue-600",
+    green: "from-green-500 to-green-600",
+    purple: "from-purple-500 to-purple-600",
+    orange: "from-orange-500 to-orange-600",
+    pink: "from-pink-500 to-pink-600",
+  };
+
   return (
-    <>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+    >
       <HabitGarden />
 
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-gray-900 sm:text-2xl">Today's Habits</h2>
-        <button
+      <div className="mb-6 flex items-center justify-between">
+        <h2 className="text-3xl font-bold text-gray-900">Today's Habits</h2>
+        <motion.button
           type="button"
-          className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/30 transition-all hover:shadow-xl hover:shadow-blue-500/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
           onClick={handleAddClick}
         >
-          + Add New Habit
-        </button>
+          <Plus className="h-5 w-5" />
+          Add New Habit
+        </motion.button>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {habits.map((habit) => (
-          <div key={habit.id} className="group relative flex items-center justify-between rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition-colors hover:shadow-md">
-            <div className="flex items-center gap-3">
-              <div className="text-2xl" aria-hidden>{habit.icon}</div>
-              <div>
-                <div className="text-base font-medium text-gray-900">{habit.name}</div>
-                <div className="text-sm text-gray-500">🔥 {habit.streak} day{habit.streak === 1 ? "" : "s"} streak</div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
-                <button
-                  type="button"
-                  onClick={() => handleEditClick(habit)}
-                  className="rounded-md p-2 text-blue-600 transition-colors hover:bg-blue-50 md:p-1.5"
-                  aria-label="Edit habit"
-                >
-                  <Pencil className="h-[18px] w-[18px] md:h-4 md:w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDeleteHabit(habit.id)}
-                  className="rounded-md p-2 text-red-600 transition-colors hover:bg-red-50 md:p-1.5"
-                  aria-label="Delete habit"
-                >
-                  <Trash2 className="h-[18px] w-[18px] md:h-4 md:w-4" />
-                </button>
-              </div>
-              <input
-                type="checkbox"
-                checked={habit.completed}
-                onChange={() => toggleHabitCompleted(habit.id)}
-                className="h-5 w-5 cursor-pointer rounded border-gray-300 text-green-600 accent-green-600"
-                aria-label={habit.completed ? "Completed today" : "Not completed"}
-              />
-            </div>
-          </div>
-        ))}
-      </div>
+      {habits.length === 0 ? (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.4 }}
+          className="rounded-2xl border-2 border-dashed border-gray-300 bg-gradient-to-br from-gray-50 to-blue-50/30 p-12 text-center shadow-sm"
+        >
+          <div className="text-6xl mb-4">🌱</div>
+          <h3 className="text-xl font-bold text-gray-900 mb-2">Start Your Journey</h3>
+          <p className="text-gray-600 mb-6">Create your first habit to begin building consistency!</p>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={handleAddClick}
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/30"
+          >
+            <Plus className="h-5 w-5" />
+            Create Your First Habit
+          </motion.button>
+        </motion.div>
+      ) : (
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+          <AnimatePresence mode="popLayout">
+            {habits.map((habit, index) => (
+              <motion.div
+                key={habit.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={{ delay: index * 0.05 }}
+                whileHover={{ y: -4 }}
+                className="group relative overflow-hidden rounded-2xl border border-gray-200/50 bg-white p-6 shadow-md transition-all hover:shadow-xl"
+              >
+                {/* Gradient Border on Left */}
+                <div className={`absolute left-0 top-0 h-full w-1 bg-gradient-to-b ${colorGradients[habit.color]}`} />
+                
+                {/* Category Badge */}
+                <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1">
+                  <span className="text-xs font-semibold text-gray-600">{habit.category}</span>
+                </div>
+
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-4 flex-1">
+                    {/* Icon with Circular Background */}
+                    <div className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${colorGradients[habit.color]} text-white shadow-lg shadow-${habit.color}-500/30`}>
+                      <span className="text-2xl" aria-hidden>{habit.icon}</span>
+                    </div>
+                    
+                    <div className="flex-1">
+                      <h3 className="text-lg font-bold text-gray-900">{habit.name}</h3>
+                      <div className="mt-2 flex items-center gap-2">
+                        <span className="text-2xl">🔥</span>
+                        <span className="text-sm font-semibold text-gray-600">
+                          {habit.streak} day{habit.streak === 1 ? "" : "s"} streak
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-1 opacity-0 transition-all group-hover:opacity-100">
+                      <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        type="button"
+                        onClick={() => handleEditClick(habit)}
+                        className="rounded-lg bg-blue-50 p-2 text-blue-600 transition-colors hover:bg-blue-100"
+                        aria-label="Edit habit"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </motion.button>
+                      <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        type="button"
+                        onClick={() => handleDeleteHabit(habit.id)}
+                        className="rounded-lg bg-red-50 p-2 text-red-600 transition-colors hover:bg-red-100"
+                        aria-label="Delete habit"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </motion.button>
+                    </div>
+                    
+                    {/* Checkbox */}
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      type="button"
+                      onClick={() => toggleHabitCompleted(habit.id)}
+                      className={`flex h-10 w-10 items-center justify-center rounded-xl transition-all ${
+                        habit.completed
+                          ? "bg-gradient-to-br from-green-500 to-green-600 shadow-lg shadow-green-500/30"
+                          : "border-2 border-gray-300 hover:border-green-400"
+                      }`}
+                      aria-label={habit.completed ? "Completed today" : "Not completed"}
+                    >
+                      {habit.completed && (
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                        >
+                          <CheckCircle2 className="h-6 w-6 text-white" />
+                        </motion.div>
+                      )}
+                    </motion.button>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
+      )}
 
       <AddHabitModal open={modalOpen} onClose={() => setModalOpen(false)} onCreate={(h) => handleCreateHabit(h)} onUpdate={handleUpdateHabit} editMode={editMode} habitToEdit={habitToEdit} />
-    </>
+    </motion.div>
   );
 }
 

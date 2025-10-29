@@ -64,56 +64,71 @@ export default function HabitGarden() {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-gradient-to-br from-green-50 to-blue-50 rounded-2xl p-6 shadow-lg mb-6"
+      className="relative overflow-hidden rounded-2xl border border-gray-200/50 bg-gradient-to-br from-green-50 via-blue-50 to-purple-50 p-8 shadow-xl mb-6"
     >
-      <h2 className="text-2xl font-bold text-gray-800 mb-4">🌱 Your Habit Garden</h2>
+      {/* Decorative elements */}
+      <div className="absolute top-0 right-0 h-32 w-32 bg-gradient-to-bl from-blue-400/20 to-transparent rounded-bl-full" />
+      <div className="absolute bottom-0 left-0 h-32 w-32 bg-gradient-to-tr from-green-400/20 to-transparent rounded-tr-full" />
       
-      <div className="flex items-center gap-6">
-        <motion.div
-          key={stage.emoji}
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ type: 'spring', stiffness: 200 }}
-          className="text-8xl"
-        >
-          {stage.emoji}
-        </motion.div>
+      <div className="relative">
+        <h2 className="text-3xl font-black text-gray-900 mb-6 flex items-center gap-2">
+          <span className="text-4xl">🌱</span>
+          Your Habit Garden
+        </h2>
+        
+        <div className="flex flex-col sm:flex-row items-center gap-8">
+          <motion.div
+            key={stage.emoji}
+            initial={{ scale: 0, rotate: -180 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ type: 'spring', stiffness: 200, damping: 15 }}
+            className="text-9xl"
+          >
+            {stage.emoji}
+          </motion.div>
 
-        <div className="flex-1 space-y-3">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-lg font-semibold text-gray-800">{stage.name}</p>
-              <p className="text-sm text-gray-600">{xp} XP</p>
-            </div>
-            <p className="text-sm text-gray-600 mb-2">{stage.message}</p>
-          </div>
-
-          {nextStage && (
+          <div className="flex-1 space-y-4">
             <div>
-              <div className="flex items-center justify-between text-sm mb-2">
-                <span className="text-gray-600">Progress to {nextStage.name}</span>
-                <span className="font-semibold text-green-600">{Math.round(progress)}%</span>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-2xl font-bold text-gray-900">{stage.name}</p>
+                <div className="rounded-full bg-gradient-to-r from-blue-500 to-purple-600 px-4 py-1.5">
+                  <p className="text-sm font-bold text-white">{xp} XP</p>
+                </div>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${progress}%` }}
-                  transition={{ duration: 0.5 }}
-                  className="h-full bg-gradient-to-r from-green-400 to-blue-500 rounded-full"
-                />
-              </div>
-              <p className="text-xs text-gray-500 mt-1">
-                {nextStage.xp - xp} XP until {nextStage.emoji}
-              </p>
+              <p className="text-base text-gray-600">{stage.message}</p>
             </div>
-          )}
 
-          {!nextStage && (
-            <div className="text-center py-2">
-              <p className="text-green-600 font-semibold">🎉 Max level reached!</p>
-              <p className="text-sm text-gray-600">Keep growing your habits!</p>
-            </div>
-          )}
+            {nextStage && (
+              <div className="rounded-xl bg-white/60 backdrop-blur-sm p-4 border border-gray-200/50">
+                <div className="flex items-center justify-between text-sm mb-3">
+                  <span className="font-semibold text-gray-700">Progress to {nextStage.name}</span>
+                  <span className="font-bold text-green-600">{Math.round(progress)}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden shadow-inner">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${progress}%` }}
+                    transition={{ duration: 0.8, ease: "easeOut" }}
+                    className="h-full bg-gradient-to-r from-green-500 via-blue-500 to-purple-500 rounded-full"
+                  />
+                </div>
+                <p className="text-sm text-gray-600 mt-2 font-medium">
+                  {nextStage.xp - xp} XP until {nextStage.emoji}
+                </p>
+              </div>
+            )}
+
+            {!nextStage && (
+              <motion.div
+                initial={{ scale: 0.9 }}
+                animate={{ scale: 1 }}
+                className="rounded-xl bg-gradient-to-r from-green-500 to-blue-500 p-4 text-center"
+              >
+                <p className="text-white font-bold text-lg">🎉 Max level reached!</p>
+                <p className="text-white/90 text-sm mt-1">Keep growing your habits!</p>
+              </motion.div>
+            )}
+          </div>
         </div>
       </div>
     </motion.div>
