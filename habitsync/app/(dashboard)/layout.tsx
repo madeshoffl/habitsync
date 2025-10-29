@@ -7,6 +7,8 @@ import { useAuth } from "../../context/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { BarChart3, Home, ListTodo, Settings, Calendar, TrendingUp, BookOpen } from "lucide-react";
 import { calculateLevel } from "../../lib/stats";
+import { OfflineBanner } from "../../components/OfflineBanner";
+import { ErrorBoundary } from "../../components/ErrorBoundary";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -41,8 +43,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <motion.header 
+    <ErrorBoundary>
+      <div className="min-h-screen bg-gray-50">
+        <OfflineBanner />
+        <motion.header 
         className={`sticky top-0 z-50 border-b transition-all duration-300 ${
           scrolled 
             ? "border-gray-200/50 bg-white/90 shadow-lg backdrop-blur-xl" 
@@ -196,5 +200,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </motion.section>
       </div>
     </div>
+    </ErrorBoundary>
   );
 }

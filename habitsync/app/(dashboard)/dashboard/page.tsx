@@ -14,6 +14,14 @@ import { getLongestActiveStreak, recordDailyCompletionRate } from "../../../lib/
 import { recordHabitCompletion } from "../../../lib/analytics";
 import { addHabitNote } from "../../../lib/notes";
 import HabitNoteModal from "../../../components/HabitNoteModal";
+import { HabitCardSkeleton, GardenSkeleton, LoadingSpinner } from "../../../components/LoadingSkeleton";
+import { ErrorMessage } from "../../../components/ErrorMessage";
+import { EmptyState } from "../../../components/EmptyState";
+import { Tooltip } from "../../../components/Tooltip";
+import { Pagination } from "../../../components/Pagination";
+import { usePagination } from "../../../hooks/usePagination";
+import { useOnlineStatus } from "../../../hooks/useOnlineStatus";
+import { toast } from "react-hot-toast";
 
 type Habit = {
   id: number;
@@ -38,6 +46,10 @@ export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [noteModalOpen, setNoteModalOpen] = useState(false);
   const [habitForNote, setHabitForNote] = useState<Habit | null>(null);
+  const [habitsLoading, setHabitsLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const isOnline = useOnlineStatus();
 
   // Check and reset habits on mount and when user changes
   useEffect(() => {
@@ -47,34 +59,61 @@ export default function DashboardPage() {
       return;
     }
 
-    // Check if habits need to be reset
-    checkAndResetHabits(user.uid);
+    setHabitsLoading(true);
+    setError(null);
 
-    // Set next reset time for display
-    const resetTime = getNextResetTime();
-    setNextResetTime(formatResetTime(resetTime));
+    try {
+      // Check if habits need to be reset
+      checkAndResetHabits(user.uid);
 
-    const q = query(collection(db, "habits"), where("userId", "==", user.uid), orderBy("createdAt", "desc"));
-    const unsub = onSnapshot(q, async (snap) => {
-      const next: Habit[] = snap.docs.map((d) => {
-        const data = d.data() as any;
-        return {
-          id: d.id as unknown as number,
-          name: data.name,
-          icon: data.icon,
-          streak: Number(data.streak ?? 0),
-          completed: Boolean(data.completed ?? false),
-          color: data.color,
-          category: data.category,
-        } as Habit;
-      });
-      setHabits(next);
-      
-      // Record daily completion rate
-      const completedCount = next.filter(h => h.completed).length;
-      await recordDailyCompletionRate(user.uid, next.length, completedCount);
-    });
-    return () => unsub();
+      // Set next reset time for display
+      const resetTime = getNextResetTime();
+      setNextResetTime(formatResetTime(resetTime));
+
+      const q = query(collection(db, "habits"), where("userId", "==", user.uid), orderBy("createdAt", "desc"));
+      const unsub = onSnapshot(
+        q,
+        async (snap) => {
+          try {
+            const next: Habit[] = snap.docs.map((d) => {
+              const data = d.data() as any;
+              return {
+                id: d.id as unknown as number,
+                name: data.name,
+                icon: data.icon,
+                streak: Number(data.streak ?? 0),
+                completed: Boolean(data.completed ?? false),
+                color: data.color,
+                category: data.category,
+              } as Habit;
+            });
+            setHabits(next);
+            setError(null);
+            
+            // Record daily completion rate
+            const completedCount = next.filter(h => h.completed).length;
+            await recordDailyCompletionRate(user.uid, next.length, completedCount);
+          } catch (err) {
+            const error = err as Error;
+            console.error("Error processing habits:", error);
+            setError(error);
+          } finally {
+            setHabitsLoading(false);
+          }
+        },
+        (err) => {
+          const error = err as Error;
+          console.error("Firestore error:", error);
+          setError(error);
+          setHabitsLoading(false);
+        }
+      );
+      return () => unsub();
+    } catch (err) {
+      const error = err as Error;
+      setError(error);
+      setHabitsLoading(false);
+    }
   }, [user, loading, router]);
 
   // Calculate longest active streak using utility function
@@ -124,33 +163,74 @@ export default function DashboardPage() {
   }
 
   async function handleCreateHabit(payload: { name: string; category: Habit["category"]; icon: string; color: Habit["color"]; }) {
-    if (!user) return;
-    await addDoc(collection(db, "habits"), {
-      userId: user.uid,
-      name: payload.name || "New Habit",
-      icon: payload.icon,
-      color: payload.color,
-      category: payload.category,
-      streak: 0,
-      completed: false,
-      createdAt: serverTimestamp(),
-    });
+    if (!user || !isOnline) {
+      toast.error("Please check your internet connection");
+      return;
+    }
+    
+    try {
+      await addDoc(collection(db, "habits"), {
+        userId: user.uid,
+        name: payload.name || "New Habit",
+        icon: payload.icon,
+        color: payload.color,
+        category: payload.category,
+        streak: 0,
+        completed: false,
+        createdAt: serverTimestamp(),
+      });
+      toast.success("Habit created successfully!");
+    } catch (err) {
+      const error = err as Error;
+      console.error("Error creating habit:", error);
+      toast.error("Failed to create habit. Please try again.");
+      throw error;
+    }
   }
 
   async function handleUpdateHabit(habitId: number | string, payload: { name: string; category: Habit["category"]; icon: string; color: Habit["color"]; }) {
-    const ref = doc(db, "habits", String(habitId));
-    await updateDoc(ref, {
-      name: payload.name,
-      icon: payload.icon,
-      color: payload.color,
-      category: payload.category,
-    });
+    if (!isOnline) {
+      toast.error("Please check your internet connection");
+      return;
+    }
+    
+    try {
+      const ref = doc(db, "habits", String(habitId));
+      await updateDoc(ref, {
+        name: payload.name,
+        icon: payload.icon,
+        color: payload.color,
+        category: payload.category,
+      });
+      toast.success("Habit updated successfully!");
+    } catch (err) {
+      const error = err as Error;
+      console.error("Error updating habit:", error);
+      toast.error("Failed to update habit. Please try again.");
+      throw error;
+    }
   }
 
   async function handleDeleteHabit(habitId: number) {
+    if (!isOnline) {
+      toast.error("Please check your internet connection");
+      return;
+    }
+    
     if (!confirm("Are you sure you want to delete this habit?")) return;
-    const ref = doc(db, "habits", String(habitId));
-    await deleteDoc(ref);
+    
+    setActionLoading(`delete-${habitId}`);
+    try {
+      const ref = doc(db, "habits", String(habitId));
+      await deleteDoc(ref);
+      toast.success("Habit deleted successfully!");
+    } catch (err) {
+      const error = err as Error;
+      console.error("Error deleting habit:", error);
+      toast.error("Failed to delete habit. Please try again.");
+    } finally {
+      setActionLoading(null);
+    }
   }
 
   function handleEditClick(habit: Habit) {
@@ -210,13 +290,30 @@ export default function DashboardPage() {
     return sorted;
   }, [habits, filter, sortBy, searchQuery]);
 
-  return (
+  // Pagination
+  const pagination = usePagination({
+    items: filteredAndSortedHabits,
+    itemsPerPage: 12,
+  });
+
+    return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
     >
-      <HabitGarden />
+      {habitsLoading ? <GardenSkeleton /> : <HabitGarden />}
+      
+      {error && (
+        <ErrorMessage 
+          error={error} 
+          onRetry={() => {
+            setError(null);
+            // Trigger re-fetch by updating user dependency
+          }}
+          className="mb-6"
+        />
+      )}
 
       <div className="mb-6 space-y-4">
         <div className="flex items-center justify-between">
@@ -224,8 +321,9 @@ export default function DashboardPage() {
             <h2 className="text-3xl font-bold text-gray-900">Today's Habits</h2>
             {nextResetTime && (
               <div className="mt-1 flex items-center gap-1.5 text-sm text-gray-600">
-                <Clock className="h-4 w-4" />
+                <Clock className="h-4 w-4" aria-hidden="true" />
                 <span>Resets at {nextResetTime}</span>
+                <Tooltip content="Habits reset daily at midnight. Complete them before then to maintain your streak!" />
               </div>
             )}
           </div>
@@ -296,40 +394,36 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {habits.length === 0 ? (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.4 }}
-          className="rounded-2xl border-2 border-dashed border-gray-300 bg-gradient-to-br from-gray-50 to-blue-50/30 p-12 text-center shadow-sm"
-        >
-          <div className="text-6xl mb-4">🌱</div>
-          <h3 className="text-xl font-bold text-gray-900 mb-2">Start Your Journey</h3>
-          <p className="text-gray-600 mb-6">Create your first habit to begin building consistency!</p>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={handleAddClick}
-            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/30"
-          >
-            <Plus className="h-5 w-5" />
-            Create Your First Habit
-          </motion.button>
-        </motion.div>
+      {habitsLoading ? (
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+          {[...Array(6)].map((_, i) => (
+            <HabitCardSkeleton key={i} />
+          ))}
+        </div>
+      ) : habits.length === 0 ? (
+        <EmptyState
+          icon="🌱"
+          title="Start Your Journey"
+          description="Create your first habit to begin building consistency! Habits reset daily, so you can track your progress every day."
+          actionLabel="Create Your First Habit"
+          onAction={handleAddClick}
+        />
       ) : filteredAndSortedHabits.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="rounded-2xl border-2 border-dashed border-gray-300 bg-gradient-to-br from-gray-50 to-blue-50/30 p-12 text-center shadow-sm"
-          >
-            <div className="text-6xl mb-4">🔍</div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">No habits found</h3>
-            <p className="text-gray-600">Try adjusting your search or filters</p>
-          </motion.div>
-        ) : (
+        <EmptyState
+          variant="search"
+          title="No habits found"
+          description="Try adjusting your search or filters to find what you're looking for."
+          onAction={() => {
+            setSearchQuery("");
+            setFilter("All");
+          }}
+          actionLabel="Clear Filters"
+        />
+      ) : (
+        <>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <AnimatePresence mode="popLayout">
-              {filteredAndSortedHabits.map((habit, index) => (
+              {pagination.paginatedItems.map((habit, index) => (
               <motion.div
                 key={habit.id}
                 initial={{ opacity: 0, y: 20 }}
@@ -396,14 +490,18 @@ export default function DashboardPage() {
                       whileTap={{ scale: 0.9 }}
                       type="button"
                       onClick={() => toggleHabitCompleted(habit.id)}
-                      className={`flex h-10 w-10 items-center justify-center rounded-xl transition-all ${
+                      disabled={actionLoading === `toggle-${habit.id}` || !isOnline}
+                      className={`flex h-10 w-10 items-center justify-center rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                         habit.completed
                           ? "bg-gradient-to-br from-green-500 to-green-600 shadow-lg shadow-green-500/30"
                           : "border-2 border-gray-300 hover:border-green-400"
                       }`}
-                      aria-label={habit.completed ? "Completed today" : "Not completed"}
+                      aria-label={habit.completed ? `Mark ${habit.name} as incomplete` : `Mark ${habit.name} as complete`}
+                      aria-pressed={habit.completed}
                     >
-                      {habit.completed && (
+                      {actionLoading === `toggle-${habit.id}` ? (
+                        <LoadingSpinner size="sm" />
+                      ) : habit.completed ? (
                         <motion.div
                           initial={{ scale: 0 }}
                           animate={{ scale: 1 }}
@@ -411,7 +509,7 @@ export default function DashboardPage() {
                         >
                           <CheckCircle2 className="h-6 w-6 text-white" />
                         </motion.div>
-                      )}
+                      ) : null}
                     </motion.button>
                   </div>
                 </div>
@@ -419,7 +517,23 @@ export default function DashboardPage() {
               ))}
             </AnimatePresence>
           </div>
-        )}
+          
+          {pagination.totalPages > 1 && (
+            <div className="mt-8">
+              <Pagination
+                currentPage={pagination.currentPage}
+                totalPages={pagination.totalPages}
+                onPageChange={pagination.goToPage}
+                hasNextPage={pagination.hasNextPage}
+                hasPrevPage={pagination.hasPrevPage}
+                startIndex={pagination.startIndex}
+                endIndex={pagination.endIndex}
+                totalItems={pagination.totalItems}
+              />
+            </div>
+          )}
+        </>
+      )}
 
       <AddHabitModal open={modalOpen} onClose={() => setModalOpen(false)} onCreate={(h) => handleCreateHabit(h)} onUpdate={handleUpdateHabit} editMode={editMode} habitToEdit={habitToEdit} />
       {habitForNote && (
